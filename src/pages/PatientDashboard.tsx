@@ -1,21 +1,46 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileText, Calendar, Activity, AlertCircle } from "lucide-react";
+import { Upload, FileText, Calendar, Activity, AlertCircle, Brain } from "lucide-react";
 import { toast } from "sonner";
 import Header from "@/components/Header";
+import { useAuth } from "@/contexts/AuthContext";
+import { analyzeReport, AnalysisResult } from "@/utils/aiAnalysis";
+import { uploadReport, getUserReports, MedicalReport } from "@/services/firebaseService";
 
 const PatientDashboard = () => {
+  const { userProfile } = useAuth();
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [hasReports, setHasReports] = useState(false);
-  const [userName] = useState("John Doe");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [reports, setReports] = useState<MedicalReport[]>([]);
+  const [latestAnalysis, setLatestAnalysis] = useState<AnalysisResult | null>(null);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    if (userProfile) {
+      loadUserReports();
+    }
+  }, [userProfile]);
+
+  const loadUserReports = async () => {
+    if (!userProfile) return;
+    try {
+      const userReports = await getUserReports(userProfile.email);
+      setReports(userReports);
+      if (userReports.length > 0) {
+        setLatestAnalysis(userReports[0].aiSummary);
+      }
+    } catch (error) {
+      console.error('Error loading reports:', error);
+      toast.error('Failed to load your reports');
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !userProfile) return;
 
     // Validate file type and size
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg'];
@@ -31,19 +56,51 @@ const PatientDashboard = () => {
       return;
     }
 
-    // Simulate upload progress
     setUploadProgress(0);
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setHasReports(true);
-          toast.success("Medical report uploaded successfully!");
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    setIsAnalyzing(true);
+
+    try {
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      // Analyze the report
+      toast.info("Analyzing your medical report with AI...");
+      const analysisResult = await analyzeReport(file);
+      
+      // Upload to Firebase
+      await uploadReport(file, userProfile.email, analysisResult);
+      
+      setUploadProgress(100);
+      setLatestAnalysis(analysisResult);
+      
+      // Reload reports
+      await loadUserReports();
+      
+      toast.success("Medical report uploaded and analyzed successfully!");
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error("Failed to upload and analyze report");
+    } finally {
+      setIsAnalyzing(false);
+      setTimeout(() => setUploadProgress(0), 2000);
+    }
+  };
+
+  const getVitalColor = (type: string) => {
+    switch (type) {
+      case 'high': return 'text-red-600 bg-red-50';
+      case 'elevated': return 'text-yellow-600 bg-yellow-50';
+      case 'low': return 'text-orange-600 bg-orange-50';
+      default: return 'text-green-600 bg-green-50';
+    }
   };
 
   return (
@@ -54,7 +111,7 @@ const PatientDashboard = () => {
         {/* Welcome Message */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Hi {userName}, ready to manage your health?
+            Hi {userProfile?.name || 'Guest'}, ready to manage your health?
           </h1>
           <p className="text-gray-600">Your personalized health dashboard</p>
         </div>
@@ -80,10 +137,14 @@ const PatientDashboard = () => {
                   onChange={handleFileUpload}
                   className="hidden"
                   id="file-upload"
+                  disabled={isAnalyzing}
                 />
                 <label htmlFor="file-upload">
-                  <Button className="bg-blue-600 hover:bg-blue-700 cursor-pointer">
-                    Upload Now
+                  <Button 
+                    className="bg-blue-600 hover:bg-blue-700 cursor-pointer" 
+                    disabled={isAnalyzing}
+                  >
+                    {isAnalyzing ? 'Analyzing...' : 'Upload Now'}
                   </Button>
                 </label>
                 <p className="text-sm text-gray-500 mt-2">
@@ -91,49 +152,74 @@ const PatientDashboard = () => {
                 </p>
               </div>
               
-              {uploadProgress > 0 && uploadProgress < 100 && (
+              {uploadProgress > 0 && (
                 <div className="mt-4">
                   <Progress value={uploadProgress} className="w-full" />
-                  <p className="text-sm text-gray-600 mt-2">Uploading... {uploadProgress}%</p>
+                  <p className="text-sm text-gray-600 mt-2">
+                    {isAnalyzing ? 'Analyzing with AI...' : `Uploading... ${uploadProgress}%`}
+                  </p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* AI Summary or No Reports Alert */}
+          {/* AI Summary */}
           <Card className="rounded-2xl shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-green-600" />
-                AI Health Summary
+                <Brain className="h-5 w-5 text-purple-600" />
+                AI Health Analysis
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {!hasReports ? (
+              {!latestAnalysis ? (
                 <Alert className="border-blue-200 bg-blue-50">
                   <AlertCircle className="h-4 w-4 text-blue-600" />
                   <AlertDescription className="text-blue-800">
-                    No medical reports found. Please book your first appointment or upload a medical report to get started.
+                    No medical reports found. Please upload a medical report to get AI-powered health insights.
                   </AlertDescription>
                 </Alert>
               ) : (
                 <div className="space-y-4">
+                  {/* Detected Diseases */}
+                  {latestAnalysis.diseases.length > 0 && (
+                    <div className="bg-purple-50 p-4 rounded-xl">
+                      <h4 className="font-semibold mb-2 text-purple-800">🔍 Detected Conditions</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {latestAnalysis.diseases.map((disease, index) => (
+                          <span key={index} className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
+                            {disease}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vitals */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-green-50 p-4 rounded-xl">
-                      <p className="text-sm text-green-700 font-medium">Blood Pressure</p>
-                      <p className="text-2xl font-bold text-green-800">120/80</p>
-                      <p className="text-xs text-green-600">Normal</p>
-                    </div>
-                    <div className="bg-yellow-50 p-4 rounded-xl">
-                      <p className="text-sm text-yellow-700 font-medium">Glucose</p>
-                      <p className="text-2xl font-bold text-yellow-800">210 mg/dL</p>
-                      <p className="text-xs text-yellow-600">High</p>
-                    </div>
+                    {Object.entries(latestAnalysis.vitals).map(([key, value]) => {
+                      const flag = latestAnalysis.flags.find(f => f.message.toLowerCase().includes(key.toLowerCase()));
+                      const colorClass = flag ? getVitalColor(flag.type) : 'text-green-600 bg-green-50';
+                      
+                      return (
+                        <div key={key} className={`p-4 rounded-xl ${colorClass}`}>
+                          <p className="text-sm font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</p>
+                          <p className="text-2xl font-bold">{value}</p>
+                          <p className="text-xs capitalize">{flag?.type || 'Normal'}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="bg-red-50 p-4 rounded-xl">
-                    <p className="text-sm text-red-700 font-medium">⚠️ Flagged Values</p>
-                    <p className="text-sm text-red-600">Elevated glucose levels detected. Consult your doctor.</p>
-                  </div>
+
+                  {/* Flags */}
+                  {latestAnalysis.flags.length > 0 && (
+                    <div className="bg-red-50 p-4 rounded-xl">
+                      <p className="text-sm text-red-700 font-medium">⚠️ Health Alerts</p>
+                      {latestAnalysis.flags.map((flag, index) => (
+                        <p key={index} className="text-sm text-red-600 mt-1">• {flag.message}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -149,16 +235,27 @@ const PatientDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {hasReports ? (
+            {reports.length > 0 ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">Blood Test Report</p>
-                    <p className="text-sm text-gray-600">Uploaded today • Dr. Smith reviewed</p>
+                {reports.map((report) => (
+                  <div key={report.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{report.fileName}</p>
+                      <p className="text-sm text-gray-600">
+                        Uploaded {report.uploadedAt.toDate().toLocaleDateString()} • 
+                        {report.aiSummary.diseases.length > 0 
+                          ? ` Detected: ${report.aiSummary.diseases.join(', ')}` 
+                          : ' No conditions detected'}
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={report.fileURL} target="_blank" rel="noopener noreferrer">
+                        View
+                      </a>
+                    </Button>
                   </div>
-                  <Button variant="outline" size="sm">View</Button>
-                </div>
+                ))}
               </div>
             ) : (
               <p className="text-gray-500 text-center py-8">No reports uploaded yet</p>

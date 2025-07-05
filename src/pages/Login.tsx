@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Heart, LogIn, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login, signup } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  
   const [loginData, setLoginData] = useState({
     email: "",
     password: "",
@@ -27,7 +30,7 @@ const Login = () => {
     verificationCode: ""
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!loginData.email || !loginData.password || !loginData.role) {
@@ -35,30 +38,40 @@ const Login = () => {
       return;
     }
 
-    if (loginData.email === "wrong@email.com") {
-      toast.error("Incorrect email or password");
-      return;
-    }
-
-    toast.success("Login successful!");
-    
-    // Navigate based on role
-    switch (loginData.role) {
-      case "patient":
-        navigate("/patient-dashboard");
-        break;
-      case "doctor":
-        navigate("/doctor-dashboard");
-        break;
-      case "staff":
-        navigate("/emergency");
-        break;
-      default:
-        navigate("/");
+    setIsLoading(true);
+    try {
+      await login(loginData.email, loginData.password);
+      toast.success("Login successful!");
+      
+      // Navigate based on role
+      switch (loginData.role) {
+        case "patient":
+          navigate("/patient-dashboard");
+          break;
+        case "doctor":
+          navigate("/doctor-dashboard");
+          break;
+        case "staff":
+          navigate("/emergency");
+          break;
+        default:
+          navigate("/");
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        toast.error("Incorrect email or password");
+      } else if (error.code === 'auth/invalid-email') {
+        toast.error("Invalid email address");
+      } else {
+        toast.error("Login failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const { fullName, email, password, confirmPassword, role, verificationCode } = signupData;
@@ -73,22 +86,42 @@ const Login = () => {
       return;
     }
 
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
     if (role === "doctor" && !verificationCode) {
       toast.error("Verification code is required for doctors");
       return;
     }
 
-    toast.success("Account created successfully! Please login to continue.");
-    
-    // Reset form and switch to login tab
-    setSignupData({
-      fullName: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-      role: "",
-      verificationCode: ""
-    });
+    setIsLoading(true);
+    try {
+      await signup(email, password, fullName, role as 'patient' | 'doctor' | 'staff');
+      toast.success("Account created successfully! Please login to continue.");
+      
+      // Reset form and switch to login tab
+      setSignupData({
+        fullName: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+        role: "",
+        verificationCode: ""
+      });
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error("An account with this email already exists");
+      } else if (error.code === 'auth/weak-password') {
+        toast.error("Password is too weak");
+      } else {
+        toast.error("Account creation failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -161,9 +194,13 @@ const Login = () => {
                     </Select>
                   </div>
 
-                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl">
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl"
+                    disabled={isLoading}
+                  >
                     <LogIn className="mr-2 h-4 w-4" />
-                    Login
+                    {isLoading ? 'Logging in...' : 'Login'}
                   </Button>
                 </form>
 
@@ -257,9 +294,13 @@ const Login = () => {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl">
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl"
+                    disabled={isLoading}
+                  >
                     <UserPlus className="mr-2 h-4 w-4" />
-                    Create Account
+                    {isLoading ? 'Creating Account...' : 'Create Account'}
                   </Button>
                 </form>
 
