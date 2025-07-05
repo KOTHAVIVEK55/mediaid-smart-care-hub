@@ -15,6 +15,7 @@ const PatientDashboard = () => {
   const { userProfile } = useAuth();
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [reports, setReports] = useState<MedicalReport[]>([]);
   const [latestAnalysis, setLatestAnalysis] = useState<AnalysisResult | null>(null);
 
@@ -38,23 +39,23 @@ const PatientDashboard = () => {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !userProfile) return;
 
-    // Validate file type and size
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg'];
+    // Validate file size (5MB limit)
     const maxSize = 5 * 1024 * 1024; // 5MB
-
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload only PDF or JPG files");
-      return;
-    }
-
     if (file.size > maxSize) {
       toast.error("File size must be under 5MB");
       return;
     }
+
+    setSelectedFile(file);
+    toast.success(`File "${file.name}" selected successfully`);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !userProfile) return;
 
     setUploadProgress(0);
     setIsAnalyzing(true);
@@ -73,10 +74,10 @@ const PatientDashboard = () => {
 
       // Analyze the report
       toast.info("Analyzing your medical report with AI...");
-      const analysisResult = await analyzeReport(file);
+      const analysisResult = await analyzeReport(selectedFile);
       
       // Upload to Firebase
-      await uploadReport(file, userProfile.email, analysisResult);
+      await uploadReport(selectedFile, userProfile.email, analysisResult);
       
       setUploadProgress(100);
       setLatestAnalysis(analysisResult);
@@ -85,6 +86,12 @@ const PatientDashboard = () => {
       await loadUserReports();
       
       toast.success("Medical report uploaded and analyzed successfully!");
+      setSelectedFile(null);
+      
+      // Reset file input
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      
     } catch (error) {
       console.error('Upload error:', error);
       toast.error("Failed to upload and analyze report");
@@ -92,6 +99,11 @@ const PatientDashboard = () => {
       setIsAnalyzing(false);
       setTimeout(() => setUploadProgress(0), 2000);
     }
+  };
+
+  const triggerFileInput = () => {
+    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+    fileInput?.click();
   };
 
   const getVitalColor = (type: string) => {
@@ -111,7 +123,7 @@ const PatientDashboard = () => {
         {/* Welcome Message */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Hi {userProfile?.name || 'Guest'}, ready to manage your health?
+            Hi {userProfile?.name || 'Guest'}, here's your health hub
           </h1>
           <p className="text-gray-600">Your personalized health dashboard</p>
         </div>
@@ -131,25 +143,42 @@ const PatientDashboard = () => {
                 <p className="text-gray-600 mb-4">
                   Drag and drop your medical reports here, or click to browse
                 </p>
+                <p className="text-sm text-gray-500 mb-4">
+                  Supports all file types: PDF, DOCX, TXT, JPG, PNG, CSV, etc.
+                </p>
+                
+                {/* Hidden file input - accepts all file types */}
                 <input
                   type="file"
-                  accept=".pdf,.jpg,.jpeg"
-                  onChange={handleFileUpload}
+                  accept="*"
+                  onChange={handleFileSelect}
                   className="hidden"
                   id="file-upload"
                   disabled={isAnalyzing}
                 />
-                <label htmlFor="file-upload">
-                  <Button 
-                    className="bg-blue-600 hover:bg-blue-700 cursor-pointer" 
-                    disabled={isAnalyzing}
-                  >
-                    {isAnalyzing ? 'Analyzing...' : 'Upload Now'}
-                  </Button>
-                </label>
-                <p className="text-sm text-gray-500 mt-2">
-                  PDF or JPG files only, max 5MB
-                </p>
+                
+                <Button 
+                  onClick={triggerFileInput}
+                  className="bg-blue-600 hover:bg-blue-700 mb-4" 
+                  disabled={isAnalyzing}
+                >
+                  {isAnalyzing ? 'Processing...' : 'Browse Files'}
+                </Button>
+
+                {selectedFile && (
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800 mb-2">
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                    <Button 
+                      onClick={handleUpload}
+                      className="bg-green-600 hover:bg-green-700"
+                      disabled={isAnalyzing}
+                    >
+                      Upload Now
+                    </Button>
+                  </div>
+                )}
               </div>
               
               {uploadProgress > 0 && (
@@ -176,7 +205,7 @@ const PatientDashboard = () => {
                 <Alert className="border-blue-200 bg-blue-50">
                   <AlertCircle className="h-4 w-4 text-blue-600" />
                   <AlertDescription className="text-blue-800">
-                    No medical reports found. Please upload a medical report to get AI-powered health insights.
+                    Please upload your first medical report to get AI-powered health insights.
                   </AlertDescription>
                 </Alert>
               ) : (

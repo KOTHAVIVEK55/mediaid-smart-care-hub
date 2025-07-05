@@ -12,6 +12,7 @@ import Emergency from "./pages/Emergency";
 import Appointments from "./pages/Appointments";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import FirebaseBackendInfo from "./components/FirebaseBackendInfo";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/emergency" element={<Emergency />} />
             <Route path="/appointments" element={<Appointments />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/backend" element={<FirebaseBackendInfo />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
