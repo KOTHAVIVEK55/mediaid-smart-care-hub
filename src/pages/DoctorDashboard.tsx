@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Users, FileText, AlertTriangle, Eye } from "lucide-react";
+import { Users, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
 import Header from "@/components/Header";
+import EmergencyAlerts from "@/components/emergency/EmergencyAlerts";
 
 const DoctorDashboard = () => {
   const [doctorName] = useState("Dr. Smith");
@@ -20,18 +21,9 @@ const DoctorDashboard = () => {
     { id: 3, name: "Mike Johnson", age: 58, reports: 5, lastVisit: "2024-01-13" },
   ];
 
-  const emergencyAlerts = [
-    { id: 1, patientId: "P001", ward: "ICU-3", time: "2 mins ago", status: "critical" },
-    { id: 2, patientId: "P047", ward: "Ward-7", time: "15 mins ago", status: "urgent" },
-  ];
-
   const handleSaveNotes = () => {
     toast.success("Notes saved successfully!");
     setNotes("");
-  };
-
-  const handleAcknowledgeAlert = (alertId: number) => {
-    toast.success("Emergency alert acknowledged");
   };
 
   return (
@@ -129,48 +121,9 @@ const DoctorDashboard = () => {
             </Card>
           </div>
 
-          {/* Emergency Alerts */}
+          {/* Emergency Alerts Section */}
           <div>
-            <Card className="rounded-2xl shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                  Emergency Alerts
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {emergencyAlerts.map((alert) => (
-                    <div key={alert.id} className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-red-600" />
-                          <Badge variant={alert.status === 'critical' ? 'destructive' : 'secondary'}>
-                            {alert.status.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <span className="text-xs text-red-600">{alert.time}</span>
-                      </div>
-                      <p className="text-sm font-medium text-red-800">Patient ID: {alert.patientId}</p>
-                      <p className="text-sm text-red-700">Ward: {alert.ward}</p>
-                      <div className="flex gap-2 mt-3">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="text-red-600 border-red-300 hover:bg-red-50"
-                          onClick={() => handleAcknowledgeAlert(alert.id)}
-                        >
-                          Acknowledge
-                        </Button>
-                        <Button size="sm" className="bg-red-600 hover:bg-red-700">
-                          View Details
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <EmergencyAlerts />
           </div>
         </div>
       </div>

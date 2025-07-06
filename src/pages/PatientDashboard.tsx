@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "lucide-react";
+import { Calendar, AlertTriangle } from "lucide-react";
 import Header from "@/components/Header";
 import { useAuth } from "@/contexts/AuthContext";
 import { AnalysisResult } from "@/utils/aiAnalysis";
@@ -9,11 +9,13 @@ import { getUserReports, MedicalReport } from "@/services/firebaseService";
 import UploadSection from "@/components/dashboard/UploadSection";
 import AIAnalysisSection from "@/components/dashboard/AIAnalysisSection";
 import ReportHistory from "@/components/dashboard/ReportHistory";
+import EmergencyModal from "@/components/emergency/EmergencyModal";
 
 const PatientDashboard = () => {
   const { userProfile } = useAuth();
   const [reports, setReports] = useState<MedicalReport[]>([]);
   const [latestAnalysis, setLatestAnalysis] = useState<AnalysisResult | null>(null);
+  const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
@@ -51,6 +53,20 @@ const PatientDashboard = () => {
           <p className="text-gray-600">Your personalized health dashboard</p>
         </div>
 
+        {/* Emergency Alert Button - Only show for patients */}
+        {userProfile?.role === 'patient' && (
+          <div className="mb-8">
+            <Button
+              onClick={() => setEmergencyModalOpen(true)}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl text-lg"
+              size="lg"
+            >
+              <AlertTriangle className="mr-2 h-5 w-5" />
+              🚨 Trigger Emergency
+            </Button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Upload Section */}
           <UploadSection 
@@ -76,6 +92,12 @@ const PatientDashboard = () => {
           </Button>
         </div>
       </div>
+
+      {/* Emergency Modal */}
+      <EmergencyModal 
+        open={emergencyModalOpen} 
+        onOpenChange={setEmergencyModalOpen} 
+      />
     </div>
   );
 };

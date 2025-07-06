@@ -1,12 +1,21 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { UserProfile, getUserProfile, createUserProfile } from '@/services/firebaseService';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: 'patient' | 'doctor' | 'staff';
+  created_at: string;
+}
 
 interface AuthContextType {
   currentUser: User | null;
   userProfile: UserProfile | null;
+  session: Session | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string, role: 'patient' | 'doctor' | 'staff') => Promise<void>;
   logout: () => Promise<void>;
@@ -26,43 +35,108 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
   };
 
   const signup = async (email: string, password: string, name: string, role: 'patient' | 'doctor' | 'staff') => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    await createUserProfile({
-      name,
-      email: userCredential.user.email!,
-      role
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`
+      }
     });
+
+    if (authError) throw authError;
+
+    if (authData.user) {
+      // Create profile in our users table
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          name,
+          email,
+          role
+        });
+
+      if (profileError) throw profileError;
+    }
   };
 
   const logout = async () => {
-    await signOut(auth);
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  };
+
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
+    }
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        const profile = await getUserProfile(user.email!);
-        setUserProfile(profile);
-      } else {
-        setUserProfile(null);
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setCurrentUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Fetch user profile from our users table
+          setTimeout(async () => {
+            const profile = await fetchUserProfile(session.user.id);
+            setUserProfile(profile);
+          }, 0);
+        } else {
+          setUserProfile(null);
+        }
+        
+        setLoading(false);
       }
-      setLoading(false);
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setCurrentUser(session?.user ?? null);
+      
+      if (session?.user) {
+        setTimeout(async () => {
+          const profile = await fetchUserProfile(session.user.id);
+          setUserProfile(profile);
+          setLoading(false);
+        }, 0);
+      } else {
+        setLoading(false);
+      }
     });
 
-    return unsubscribe;
+    return () => subscription.unsubscribe();
   }, []);
 
   const value = {
     currentUser,
     userProfile,
+    session,
     login,
     signup,
     logout,
