@@ -86,7 +86,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error) throw error;
-      return data;
+      
+      // Type assertion to ensure role is properly typed
+      return data as UserProfile;
     } catch (error) {
       console.error('Error fetching user profile:', error);
       return null;
