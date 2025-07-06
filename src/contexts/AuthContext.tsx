@@ -95,6 +95,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Role-based navigation
+  const navigateBasedOnRole = (role: string) => {
+    switch (role) {
+      case 'patient':
+        if (window.location.pathname !== '/dashboard/patient') {
+          window.location.href = '/dashboard/patient';
+        }
+        break;
+      case 'doctor':
+        if (window.location.pathname !== '/dashboard/doctor') {
+          window.location.href = '/dashboard/doctor';
+        }
+        break;
+      case 'staff':
+        if (window.location.pathname !== '/dashboard/staff') {
+          window.location.href = '/dashboard/staff';
+        }
+        break;
+    }
+  };
+
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -107,6 +128,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setTimeout(async () => {
             const profile = await fetchUserProfile(session.user.id);
             setUserProfile(profile);
+            
+            // Navigate based on role if profile exists
+            if (profile && window.location.pathname === '/') {
+              navigateBasedOnRole(profile.role);
+            }
           }, 0);
         } else {
           setUserProfile(null);
@@ -125,6 +151,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setTimeout(async () => {
           const profile = await fetchUserProfile(session.user.id);
           setUserProfile(profile);
+          
+          // Navigate based on role if profile exists
+          if (profile && window.location.pathname === '/') {
+            navigateBasedOnRole(profile.role);
+          }
+          
           setLoading(false);
         }, 0);
       } else {

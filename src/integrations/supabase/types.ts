@@ -51,6 +51,85 @@ export type Database = {
           },
         ]
       }
+      medications: {
+        Row: {
+          created_at: string
+          dosage: string
+          id: string
+          medicine: string
+          patient_id: string
+          status: string
+          times: string[]
+        }
+        Insert: {
+          created_at?: string
+          dosage: string
+          id?: string
+          medicine: string
+          patient_id: string
+          status?: string
+          times: string[]
+        }
+        Update: {
+          created_at?: string
+          dosage?: string
+          id?: string
+          medicine?: string
+          patient_id?: string
+          status?: string
+          times?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medications_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reports: {
+        Row: {
+          created_at: string
+          disease: string[] | null
+          file_name: string
+          file_url: string
+          id: string
+          suggested_meds: string[] | null
+          user_id: string
+          vitals: Json | null
+        }
+        Insert: {
+          created_at?: string
+          disease?: string[] | null
+          file_name: string
+          file_url: string
+          id?: string
+          suggested_meds?: string[] | null
+          user_id: string
+          vitals?: Json | null
+        }
+        Update: {
+          created_at?: string
+          disease?: string[] | null
+          file_name?: string
+          file_url?: string
+          id?: string
+          suggested_meds?: string[] | null
+          user_id?: string
+          vitals?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           created_at: string
